@@ -2,7 +2,72 @@
 #include <Trade/Trade.mqh>
 CTrade trade;
 
+#import "wininet.dll"
+int InternetCheckConnectionW(string &lpszUrl,uint dwFlags,uint dwReserved);
+int InternetOpenW(string &lpszAgent,uint dwAccessType,string &lpszProxyName,string &lpszProxyBypass,uint dwFlags);
+int InternetOpenUrlW(int hInternetSession,string &lpszUrl,string &lpszHeaders,uint dwHeadersLength,uint dwFlags,uint dwContext);
+int InternetConnectW(int hInternet,string &lpszServerName,int nServerPort,string &lpszUsername,string &lpszPassword,uint dwService,uint dwFlags,uint dwContext);
+int HttpOpenRequestW(int hConnect,string &lpszVerb,string &lpszObjectName,string &lpszVersion,string &lpszReferer,string &lplpszAcceptTypes,uint dwFlags,uint dwContext);
+int HttpSendRequestW(int hRequest,string &lpszHeaders,uint dwHeadersLength,uchar &lpOptional[],uint dwOptionalLength);
+int InternetReadFile(int hFile,uchar &lpBuffer[],uint dwNumberOfBytesToRead,uint &lpdwNumberOfBytesRead);
+int InternetCloseHandle(int hInternet);
+#import
 
+uchar uc_Buffer[4096]; 
+float 10Y_US;
+
+void OnStart()
+  {
+   bool bResult;  int i,iNet1,iNet2; //, iRequest;  
+   string stURL="http://www.msn.com";
+
+   bResult=InternetCheckConnectionW(stURL,1,0); // 1 == FLAG_ICC_FORCE_CONNECTION
+   Print("InternetCheckConnectionW() returned ",bResult);
+   if(!bResult) return;
+
+   string stAgent="Mozilla/5.0",stNull="";
+   iNet1 = InternetOpenW(stAgent, // _In_ LPCTSTR lpszAgent 
+                         1,       // 1 == INTERNET_OPEN_TYPE_DIRECT
+                         stNull,  // _In_ LPCTSTR lpszProxyName
+                         stNull,  // _In_ LPCTSTR lpszProxyBypass
+                         NULL);   // _In_ DWORD dwFlags
+   Print("iNet1 == ",iNet1);
+   if(iNet1==0) return;
+
+   stURL="https://api.wsj.net/api/dylan/quotes/v2/comp/quoteByDialect?dialect=official&needed=CompositeTrading|BluegrassChannels&MaxInstrumentMatches=1&accept=application/json&EntitlementToken=cecc4267a0194af89ca343805a3e57af&ckey=cecc4267a0&dialects=Charting&id=Bond-BX-TMUBMUSD10Y";
+   string stHdr="Accept: text/*";
+   iNet2 = InternetOpenUrlW(iNet1,           // HINTERNET hInternet,
+                            stURL,           // LPCWSTR   lpszUrl,
+                            stHdr,           // LPCWSTR   lpszHeaders,
+                            StringLen(stHdr),// DWORD     dwHeadersLength,
+                            0x00080000,      // DWORD dwFlags, 0x00080000 == INTERNET_FLAG_NO_COOKIES
+                            NULL);           // DWORD_PTR dwContext
+   Print("iNet2 == ",iNet2);
+   if(iNet2==0)
+     {
+      InternetCloseHandle(iNet1);
+      return;
+     }
+
+   uint uGet,uGot;
+   uGet=4080; // number of bytes to download
+   bResult = InternetReadFile(iNet2,     // _In_  HINTERNET hFile
+                              uc_Buffer, // _Out_ LPVOID lpBuffer
+                              uGet,      // _In_  DWORD dwNumberOfBytesToRead
+                              uGot);     // _Out_ LPDWORD lpdwNumberOfBytesRead
+   Print("InternetReadFile() returned ",bResult,". Number of bytes read: ",uGot);
+   InternetCloseHandle(iNet2);  // download done
+   if(!bResult) {InternetCloseHandle(iNet1); return;}
+   uc_Buffer[uGot]=0;  // Terminate string in uc_Buffer by appending a null character.
+   i=StringFind(CharArrayToString(uc_Buffer),"\"CompositeTrading\":{\"Last\":{\"Price\":{\"Iso\":\"PERCENT\",\"Value\":",0); // 0 == position from which search starts 
+   Print("Offset of \"CompositeTrading\":{\"Last\":{\"Price\":{\"Iso\":\"PERCENT\",\"Value\": == ",i);
+   if(i==-1) {Print("\"CompositeTrading\":{\"Last\":{\"Price\":{\"Iso\":\"PERCENT\",\"Value\": not found.");  InternetCloseHandle(iNet1);  return;}
+   i+=61; // Advance index to known location of text representing bond yield.
+   10Y_US=StringToDouble(StringSubstr(CharArrayToString(uc_Buffer),i,8));
+   Print("US 10-year T-note yield, stored in variable f_US: ",f_US);
+   InternetCloseHandle(iNet1); // Done with wininet.
+  }
+  
 int OnInit()
   {
   
