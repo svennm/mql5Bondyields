@@ -19,7 +19,8 @@ soup10Y = BeautifulSoup(page10y.content, 'html.parser')
 TenYearYield = soup10Y.find_all("span", class_ = "value")
 
 for i in TenYearYield:
-    print(i,end="\n"*2)
+    print(i.text,end="\n"*2)
+    
 
 
 # print(TenYearYield.text)
